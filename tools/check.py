@@ -20,6 +20,7 @@ ONLY = next((a.split('=', 1)[1] for a in sys.argv[1:] if a.startswith('--only=')
 root = pathlib.Path(ARGS[0] if ARGS else '.').resolve()
 sys.path.insert(0, str(root / 'tools'))
 import build_index  # noqa: E402
+import build_quiz  # noqa: E402
 import ipa  # noqa: E402
 
 nav = (root / 'assets' / 'nav.js').read_text(encoding='utf-8')
@@ -161,6 +162,16 @@ if idx.exists():
         problems.append('search-index.json 已过期：请运行 python tools/build_index.py')
 else:
     problems.append('缺少 assets/search-index.json：请运行 python tools/build_index.py')
+
+# 三级练习索引是否最新
+quiz_idx = root / 'assets' / 'quiz-index.json'
+if quiz_idx.exists():
+    fresh_quiz = build_quiz.build(root)
+    cur_quiz = json.loads(quiz_idx.read_text(encoding='utf-8'))
+    if cur_quiz != fresh_quiz:
+        problems.append('quiz-index.json 已过期：请运行 python tools/build_quiz.py')
+else:
+    problems.append('缺少 assets/quiz-index.json：请运行 python tools/build_quiz.py')
 
 print('pages', len(paths), 'items', tot_items, 'dialogs', tot_dialogs, 'questions', tot_q, 'chars', tot_chars)
 print('\n'.join(problems) if problems else 'NO PROBLEMS')

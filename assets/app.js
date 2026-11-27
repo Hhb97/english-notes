@@ -3,7 +3,10 @@
 
   var NAV = window.NAV;
   var $ = function (id) { return document.getElementById(id); };
-  var content = $('content'), navEl = $('nav'), tocEl = $('toc'), docHead = $('docHead'), studyBar = $('studyBar');
+  var content = $('content'), navEl = $('nav'), tocEl = $('toc'), docHead = $('docHead'), studyBar = $('studyBar'), practiceEl = $('practice');
+  var quizIndex = null, quizReady = null, quizById = null;
+  var review = { v: 1, items: {} };
+  try { review = Object.assign(review, JSON.parse(localStorage.getItem('en-review') || '{}')); } catch (e) { /* 存储不可用时用内存 */ }
   var SITE = 'English Notes · 每天一点英语';
   var CAT_EN = { start: 'START HERE', daily: 'DAILY LIFE', social: 'SOCIAL', travel: 'TRAVEL', health: 'HEALTH', words: 'VOCABULARY', work: 'WORK', tech: 'TECH', adv: 'BEYOND' };
   var DAILY = [
@@ -461,8 +464,10 @@
       b.setAttribute('aria-pressed', String(!view[k]));    // 按下 = 显示
     });
     studyBar.querySelectorAll('[data-mode]').forEach(function (b) {
-      var test = b.dataset.mode === 'test';
-      b.classList.toggle('on', test ? !!view.hideEn : !view.hideEn);
+      var m = b.dataset.mode;
+      var on = m === 'test' ? !!view.hideEn :
+        m === 'enfirst' ? (!view.hideEn && !!view.hideZh) : (!view.hideEn && !view.hideZh);
+      b.classList.toggle('on', on);
     });
     refreshRev();
   }
@@ -489,7 +494,7 @@
     if (!hasCards) { studyBar.innerHTML = ''; return; }
     studyBar.innerHTML =
       '<span class="lbl">模式</span>' +
-      '<span class="mode-switch"><button type="button" data-mode="study">默认英文</button><button type="button" data-mode="test">自测</button></span>' +
+      '<span class="mode-switch"><button type="button" data-mode="study">默认英文</button><button type="button" data-mode="enfirst">英文优先</button><button type="button" data-mode="test">自测</button></span>' +
       '<span class="sep"></span><span class="lbl">显示</span>' +
       '<button type="button" class="tg" data-k="hideEn" title="显示或遮住全部英文（自测模式下也可以点模糊的英文）">英文</button>' +
       '<button type="button" class="tg" data-k="hideIpa" title="显示或隐藏音标">音标</button>' +
@@ -505,9 +510,11 @@
   studyBar.addEventListener('click', function (e) {
     var mb = e.target.closest('[data-mode]');
     if (mb) {
-      var test = mb.dataset.mode === 'test';
-      view.hideEn = test; saved.hideEn = test;
-      view.hideIpa = test; saved.hideIpa = test;
+      var m = mb.dataset.mode;
+      var hideEn = m === 'test', hideIpa = m === 'test', hideZh = m === 'enfirst';
+      view.hideEn = hideEn; saved.hideEn = hideEn;
+      view.hideIpa = hideIpa; saved.hideIpa = hideIpa;
+      view.hideZh = hideZh; saved.hideZh = hideZh;
       content.querySelectorAll('.flip, .zflip').forEach(function (c) { c.classList.remove('flip', 'zflip'); });
       persist(); applyView(); return;
     }
@@ -544,6 +551,170 @@
     if (ew && card && view.hideEn !== card.classList.contains('flip')) { card.classList.toggle('flip'); refreshRev(); return; }
     if (zw && card && view.hideZh !== card.classList.contains('zflip')) { card.classList.toggle('zflip'); refreshRev(); }
   });
+
+  /* ================= 三级练习与间隔复习 ================= */
+  function persistReview() { try { localStorage.setItem('en-review', JSON.stringify(review)); } catch (e) { /* 忽略 */ } }
+
+  function ensureQuiz() {
+    if (!quizReady) {
+      quizReady = fetch('assets/quiz-index.json?v=1').then(function (r) {
+        if (!r.ok) throw new Error(r.status);
+        return r.json();
+      }).then(function (d) {
+        quizIndex = d; quizById = {};
+        Object.keys(d.pages || {}).forEach(function (p) {
+          d.pages[p].items.forEach(function (it) { quizById[it.id] = it; });
+        });
+        return d;
+      }).catch(function () {
+        quizIndex = { v: 1, pages: {} }; quizById = {}; return quizIndex;
+      });
+    }
+    return quizReady;
+  }
+
+  function recordResult(id, ok) {
+    var r = review.items[id] || { n: 0, stage: 0, due: 0, last: '' };
+    if (ok) { r.n = (r.n || 0) + 1; r.stage = Math.min(4, (r.stage || 0) + 1); }
+    else { r.n = 0; r.stage = 0; }
+    r.due = Date.now() + [1, 3, 7, 14, 30][r.stage] * 86400000;
+    r.last = new Date().toISOString().slice(0, 10);
+    review.items[id] = r;
+    persistReview();
+  }
+
+  function stepHtml(step, label, question, body, extra) {
+    return '<div class="ex-step" data-step="' + step + '"><span class="ex-label">' + label + '</span>' +
+      '<p class="ex-q">' + question + '</p>' + body + (extra || '') + '<div class="ex-fb" hidden></div></div>';
+  }
+
+  function renderExercise(it, i) {
+    var id = esc(it.id), num = i < 9 ? '0' + (i + 1) : String(i + 1);
+    var opts = it.recognize.options.map(function (o, j) {
+      return '<button type="button" class="ex-opt" data-j="' + j + '">' + String.fromCharCode(65 + j) + '. ' + esc(o) + '</button>';
+    }).join('');
+    var r = stepHtml('recognize', '1 · 能认出', '看中文，选出对应的英文',
+      '<div class="ex-opts">' + opts + '</div>');
+    var c = stepHtml('recall', '2 · 能回忆', esc(it.recall.q),
+      '<div class="ex-blank">' + esc(it.recall.blank) + '</div>' +
+      '<div class="ex-row"><input class="ex-input" type="text" placeholder="填入空格里的词" autocomplete="off" spellcheck="false">' +
+      '<button type="button" class="ex-check">检查</button><button type="button" class="ex-hint">提示</button></div>');
+    var p = stepHtml('produce', '3 · 能使用', esc(it.produce.q),
+      '<textarea class="ex-area" rows="2" placeholder="自己写一句英文，再点对照参考"></textarea>' +
+      '<div class="ex-row"><button type="button" class="ex-reveal">对照参考</button>' +
+      '<span class="ex-self" hidden><button type="button" class="ex-rate" data-ok="1">我会用</button>' +
+      '<button type="button" class="ex-rate" data-ok="0">还要练</button></span></div>');
+    return '<div class="ex" data-id="' + id + '"><div class="ex-head"><span class="ex-num">' + num + '</span>' +
+      '<b>' + esc(it.zh) + '</b>' + (it.note ? '<span class="ex-note">' + esc(it.note) + '</span>' : '') + '</div>' +
+      r + c + p + '</div>';
+  }
+
+  function buildPractice(path) {
+    if (!practiceEl) return;
+    practiceEl.innerHTML = '';
+    if (path === 'index') return;
+    ensureQuiz().then(function () {
+      if (current.path !== path) return;
+      var data = quizIndex.pages[path];
+      if (!data || !data.items.length) return;
+      practiceEl.innerHTML = '<div class="practice-head"><span class="kicker">Practice</span>' +
+        '<h2>练一遍：认出 → 回忆 → 使用</h2><p>先自己作答，再看反馈。每一步的结果会进入「今日复习」。</p></div>' +
+        data.items.map(renderExercise).join('');
+      if (location.hash.indexOf('#practice') >= 0) practiceEl.scrollIntoView({ block: 'start' });
+    });
+  }
+
+  function feedback(step, ok, text) {
+    var fb = step.querySelector('.ex-fb');
+    if (!fb) return;
+    fb.hidden = false;
+    fb.className = 'ex-fb ' + (ok ? 'ok' : 'bad');
+    fb.textContent = text;
+  }
+
+  if (practiceEl) {
+    practiceEl.addEventListener('click', function (e) {
+      var ex = e.target.closest('.ex');
+      if (!ex) return;
+      var item = quizById && quizById[ex.dataset.id];
+      if (!item) return;
+      var opt = e.target.closest('.ex-opt');
+      if (opt) {
+        var step = opt.closest('.ex-step');
+        if (step.dataset.done) return;
+        step.dataset.done = '1';
+        var ans = item.recognize.answer, pick = Number(opt.dataset.j), ok = pick === ans;
+        step.querySelectorAll('.ex-opt').forEach(function (b, j) {
+          b.disabled = true;
+          b.classList.toggle('right', j === ans);
+          b.classList.toggle('wrong', !ok && j === pick);
+        });
+        feedback(step, ok, ok ? '答对了：' + item.en : '正确答案：' + item.recognize.options[ans] + (item.note ? ' · ' + item.note : ''));
+        recordResult(item.id, ok); return;
+      }
+      if (e.target.closest('.ex-hint')) {
+        var s = e.target.closest('.ex-step');
+        feedback(s, false, '提示：' + item.recall.hint + '（' + item.recall.answer.length + ' 个字母）'); return;
+      }
+      if (e.target.closest('.ex-check')) {
+        var s2 = e.target.closest('.ex-step');
+        if (s2.dataset.done) return;
+        s2.dataset.done = '1';
+        var val = s2.querySelector('.ex-input').value.trim().toLowerCase().replace(/^[^a-z]+|[^a-z]+$/g, '');
+        var ok2 = val === item.recall.answer;
+        feedback(s2, ok2, ok2 ? '填对了：' + item.recall.answer : '答案：' + item.recall.answer + ' · 完整句：' + item.recall.blank.replace('____', item.recall.answer));
+        recordResult(item.id, ok2); return;
+      }
+      if (e.target.closest('.ex-reveal')) {
+        var s3 = e.target.closest('.ex-step');
+        var fb = s3.querySelector('.ex-fb');
+        fb.hidden = false; fb.className = 'ex-fb';
+        fb.textContent = '参考：' + item.produce.ref + '（' + item.produce.refZh + '）';
+        s3.querySelector('.ex-self').hidden = false; return;
+      }
+      var rate = e.target.closest('.ex-rate');
+      if (rate) {
+        var s4 = rate.closest('.ex-step');
+        recordResult(item.id, rate.dataset.ok === '1');
+        s4.querySelector('.ex-self').hidden = true;
+        var old = s4.querySelector('.ex-fb').textContent;
+        feedback(s4, rate.dataset.ok === '1', old + ' · 已记录');
+      }
+    });
+  }
+
+  function renderReviewBox() {
+    var box = $('reviewBox');
+    if (!box) return;
+    ensureQuiz().then(function () {
+      if (!$('reviewBox')) return;
+      var now = Date.now(), due = [], learning = 0, known = 0;
+      function itemOf(id) {
+        var page = quizIndex.pages[id.replace(/-\d+$/, '')];
+        if (!page) return null;
+        return page.items.filter(function (x) { return x.id === id; })[0] || null;
+      }
+      Object.keys(review.items).forEach(function (id) {
+        var r = review.items[id];
+        if ((r.stage || 0) >= 3) known++; else learning++;
+        if ((r.due || 0) <= now) due.push(id);
+      });
+      due.sort(function (a, b) {
+        var A = itemOf(a), B = itemOf(b);
+        return ((B && B.freq) || 0) - ((A && A.freq) || 0);
+      });
+      var html = '<div class="review-card"><div class="review-top"><span class="kicker">Spaced review</span>' +
+        '<b>今日复习</b><span class="review-count">' + due.length + ' 项到期</span></div>';
+      html += due.length
+        ? '<div class="review-list">' + due.slice(0, 6).map(function (id) {
+            var it = itemOf(id); if (!it) return '';
+            return '<a href="#/' + id.replace(/-\d+$/, '') + '#practice"><span>' + esc(it.en) + '</span><small>' + esc(it.zh) + '</small></a>';
+          }).join('') + '</div>'
+        : '<p class="review-empty">还没有到期项目。打开任意一页，在页面底部练一遍就会出现在这里。</p>';
+      html += '<div class="review-meta">在学 ' + learning + ' · 已会用 ' + known + '</div></div>';
+      box.innerHTML = html;
+    });
+  }
 
   // 首页「每日一句」在正文容器之外，单独代理朗读按钮
   document.addEventListener('click', function (e) {
@@ -625,6 +796,7 @@
 
   function renderHome() {
     renderDailyLine();
+    renderReviewBox();
     var cats = $('home-cats');
     if (cats) {
       cats.className = 'cat-grid';
@@ -698,12 +870,13 @@
       buildStudyBar(!!content.querySelector('.ph'));
       if (!content.querySelector('.ph')) applyView();
       buildToc(path);
+      buildPractice(path);
       if (!scrollToAnchor(r.anchor, false)) window.scrollTo(0, 0);
       updateProgress();
     }).catch(function () {
       docHead.innerHTML = '<h1>页面未找到</h1>';
       content.innerHTML = '<p>无法加载 <code>docs/' + esc(path) + '.md</code>，这一页可能还在编写中。</p>';
-      studyBar.innerHTML = ''; tocEl.innerHTML = ''; $('pager').innerHTML = '';
+      studyBar.innerHTML = ''; tocEl.innerHTML = ''; $('pager').innerHTML = ''; practiceEl.innerHTML = '';
     });
   }
   window.addEventListener('hashchange', route);
