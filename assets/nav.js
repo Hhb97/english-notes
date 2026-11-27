@@ -102,7 +102,7 @@ window.NAV = [
     ]
   },
   {
-    id: 'words', title: '主题词汇', desc: '按主题积累单词与搭配，动词、形容词、食物、家居、出行、情绪',
+    id: 'words', title: '主题词汇', desc: '从生活词到职场词，按主题积累能直接用于沟通的单词与搭配',
     children: [
       {
         title: '高频词', children: [
@@ -116,6 +116,30 @@ window.NAV = [
           { title: '家居与家电词汇', path: 'words/home' },
           { title: '出行与地点词汇', path: 'words/places' },
           { title: '情绪与性格词汇', path: 'words/emotions' }
+        ]
+      },
+      {
+        title: '职场核心词', children: [
+          { title: '职场高频动词', path: 'words/work-verbs' },
+          { title: '职场高频名词', path: 'words/work-nouns' },
+          { title: '职场形容词与副词', path: 'words/work-adjectives' },
+          { title: '高频搭配：动词 + 名词', path: 'words/collocations' },
+          { title: '职场短语动词', path: 'words/phrasal-verbs' }
+        ]
+      },
+      {
+        title: '职场场景词', children: [
+          { title: '邮件与书面沟通词汇', path: 'words/email-words' },
+          { title: '会议与讨论词汇', path: 'words/meeting-words' },
+          { title: '项目与进度词汇', path: 'words/project-words' },
+          { title: '团队协作与角色词汇', path: 'words/team-words' },
+          { title: '客户与服务词汇', path: 'words/client-words' }
+        ]
+      },
+      {
+        title: '表达升级', children: [
+          { title: '逻辑连接与过渡表达', path: 'words/connectors' },
+          { title: '礼貌、委婉与语气表达', path: 'words/politeness' }
         ]
       }
     ]
