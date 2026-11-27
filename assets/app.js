@@ -4,7 +4,22 @@
   var NAV = window.NAV;
   var $ = function (id) { return document.getElementById(id); };
   var content = $('content'), navEl = $('nav'), tocEl = $('toc'), docHead = $('docHead'), studyBar = $('studyBar');
-  var SITE = 'IT 英语口语笔记';
+  var SITE = 'English Notes · 每天一点英语';
+  var CAT_EN = { start: 'START HERE', daily: 'DAILY LIFE', social: 'SOCIAL', travel: 'TRAVEL', health: 'HEALTH', words: 'VOCABULARY', work: 'WORK', tech: 'TECH', adv: 'BEYOND' };
+  var DAILY = [
+    { en: 'Every day is a chance to get a little better.', zh: '每天都是变得更好一点的机会。' },
+    { en: 'Could you say that again, please?', zh: '能请你再说一遍吗？' },
+    { en: 'I am running a few minutes late.', zh: '我要晚几分钟。' },
+    { en: 'That sounds good to me.', zh: '我觉得这样挺好。' },
+    { en: 'Let me take a look at it.', zh: '让我看看。' },
+    { en: 'Thanks for checking in on me.', zh: '谢谢你关心我。' },
+    { en: 'I am just looking, thanks.', zh: '我随便看看，谢谢。' },
+    { en: 'It is worth a try.', zh: '值得一试。' },
+    { en: 'Do you have a minute?', zh: '你有空吗？' },
+    { en: 'One step at a time.', zh: '一步一步来。' },
+    { en: 'I could use a break.', zh: '我需要休息一下。' },
+    { en: 'Let us make the most of today.', zh: '让我们好好利用今天。' }
+  ];
 
   var cache = {};           // path -> 原始 markdown
   var pages = [];           // 扁平化文章 {title, path, cat, trail}
@@ -72,7 +87,7 @@
     if (navCat === cat) return;
     navCat = cat;
     if (!cat) {
-      $('sideHead').innerHTML = '<div class="kicker">IT English</div><h2>全部分类</h2><p>' + pages.length + ' 篇，从入门到深入。</p>';
+      $('sideHead').innerHTML = '<div class="kicker">English Notes</div><h2>全部分类</h2><p>' + pages.length + ' 篇，从日常到职场。</p>';
       navEl.innerHTML = NAV.map(function (c) {
         return '<a class="nav-cat" href="#/' + c.pages[0].path + '"><b>' + esc(c.title) + '</b><small>' + esc(c.desc) + ' · ' + c.pages.length + ' 篇</small></a>';
       }).join('');
@@ -144,7 +159,8 @@
 
   function renderPhrase(f) {
     var e = takeEnIpa(f, 0), zh = f[e.next] || '', note = f[e.next + 1] || '';
-    return '<div class="ph"><div class="ph-main"><div class="ph-zh zw">' + esc(zh) + '</div>' + enBlock(e.en, e.ipa) +
+    return '<div class="ph"><div class="ph-main">' + enBlock(e.en, e.ipa) +
+      '<div class="ph-zh zw">' + esc(zh) + '</div>' +
       (note ? '<div class="ph-note">' + esc(note) + '</div>' : '') + '</div>' +
       '<div class="ph-act">' + speakBtn(e.en) + '<button type="button" class="ibtn rev" aria-pressed="false" title="显示 / 隐藏英文">EN</button></div></div>';
   }
@@ -156,7 +172,7 @@
       ex = '<div class="ph-ex">' + enBlock(x.en, x.ipa) +
         (exZh ? '<div class="zh zw">' + esc(exZh) + '</div>' : '') + speakBtn(x.en) + '</div>';
     }
-    return '<div class="ph wd"><div class="ph-main"><div class="ph-zh zw">' + zhHtml(zh) + '</div>' + enBlock(w.en, w.ipa) + ex + '</div>' +
+    return '<div class="ph wd"><div class="ph-main">' + enBlock(w.en, w.ipa) + '<div class="ph-zh zw">' + zhHtml(zh) + '</div>' + ex + '</div>' +
       '<div class="ph-act">' + speakBtn(w.en) + '<button type="button" class="ibtn rev" aria-pressed="false" title="显示 / 隐藏英文">EN</button></div></div>';
   }
 
@@ -173,7 +189,7 @@
       var side = order.indexOf(sp) % 2 ? 'right' : 'left';
       var e = takeEnIpa(f, 0), zh = f[e.next] || '';
       html += '<div class="turn ' + side + '" data-sp="' + order.indexOf(sp) + '"><span class="sp">' + esc(sp) + '</span>' +
-        '<div class="ph"><div class="ph-main"><div class="ph-zh zw">' + esc(zh) + '</div>' + enBlock(e.en, e.ipa) + '</div>' +
+        '<div class="ph"><div class="ph-main">' + enBlock(e.en, e.ipa) + '<div class="ph-zh zw">' + esc(zh) + '</div></div>' +
         '<div class="ph-act">' + speakBtn(e.en) + '<button type="button" class="ibtn rev" aria-pressed="false" title="显示 / 隐藏英文">EN</button></div></div></div>';
     });
     return '<div class="dl"><div class="dl-head"><b>' + (title ? esc(title) : '情景对话') + '</b>' +
@@ -425,8 +441,13 @@
   }
 
   /* ================= 学习设置：英文 / 音标 / 中文 的遮盖，语速，声音 ================= */
-  var saved = { hideEn: true, hideIpa: false, hideZh: false, rate: 0.9, voice: '' };
-  try { saved = Object.assign(saved, JSON.parse(localStorage.getItem('en-study') || '{}')); } catch (e) { /* 存储不可用时用默认值 */ }
+  // 默认进入就显示英文；旧版本保存过「遮住英文」的偏好，升级时只重置这一项
+  var saved = { hideEn: false, hideIpa: false, hideZh: false, rate: 0.9, voice: '', v: 2 };
+  try {
+    var old = JSON.parse(localStorage.getItem('en-study') || '{}');
+    if (old.v !== 2) old.hideEn = false;
+    saved = Object.assign(saved, old);
+  } catch (e) { /* 存储不可用时用默认值 */ }
   var prefs = saved;                                  // 语速、声音
   var view = { hideEn: saved.hideEn, hideIpa: saved.hideIpa, hideZh: saved.hideZh };   // 当前页的显示状态
   function persist() { try { localStorage.setItem('en-study', JSON.stringify(saved)); } catch (e) { /* 忽略 */ } }
@@ -438,6 +459,10 @@
     studyBar.querySelectorAll('.tg').forEach(function (b) {
       var k = b.dataset.k;
       b.setAttribute('aria-pressed', String(!view[k]));    // 按下 = 显示
+    });
+    studyBar.querySelectorAll('[data-mode]').forEach(function (b) {
+      var test = b.dataset.mode === 'test';
+      b.classList.toggle('on', test ? !!view.hideEn : !view.hideEn);
     });
     refreshRev();
   }
@@ -463,7 +488,9 @@
   function buildStudyBar(hasCards) {
     if (!hasCards) { studyBar.innerHTML = ''; return; }
     studyBar.innerHTML =
-      '<span class="lbl">显示</span>' +
+      '<span class="lbl">模式</span>' +
+      '<span class="mode-switch"><button type="button" data-mode="study">默认英文</button><button type="button" data-mode="test">自测</button></span>' +
+      '<span class="sep"></span><span class="lbl">显示</span>' +
       '<button type="button" class="tg" data-k="hideEn" title="显示或遮住全部英文（也可以点每条右侧的 EN）">英文</button>' +
       '<button type="button" class="tg" data-k="hideIpa" title="显示或隐藏音标">音标</button>' +
       '<button type="button" class="tg" data-k="hideZh" title="显示或遮住中文，用来练习听力和回忆">中文</button>' +
@@ -476,6 +503,14 @@
   }
 
   studyBar.addEventListener('click', function (e) {
+    var mb = e.target.closest('[data-mode]');
+    if (mb) {
+      var test = mb.dataset.mode === 'test';
+      view.hideEn = test; saved.hideEn = test;
+      view.hideIpa = test; saved.hideIpa = test;
+      content.querySelectorAll('.flip, .zflip').forEach(function (c) { c.classList.remove('flip', 'zflip'); });
+      persist(); applyView(); return;
+    }
     var b = e.target.closest('.tg');
     if (!b) return;
     var k = b.dataset.k;
@@ -508,6 +543,12 @@
     var ew = t.closest('.ew'), zw = t.closest('.zw'), card = t.closest('.ph');
     if (ew && card && view.hideEn !== card.classList.contains('flip')) { card.classList.toggle('flip'); refreshRev(); return; }
     if (zw && card && view.hideZh !== card.classList.contains('zflip')) { card.classList.toggle('zflip'); }
+  });
+
+  // 首页「每日一句」在正文容器之外，单独代理朗读按钮
+  document.addEventListener('click', function (e) {
+    var spk = e.target.closest('#dailyLine .ibtn.spk');
+    if (spk) say(spk);
   });
 
   /* ================= 文章头 / 目录 / 翻页 ================= */
@@ -573,13 +614,25 @@
   }
 
   /* ================= 首页 ================= */
+  function renderDailyLine() {
+    var box = $('dailyLine');
+    if (!box) return;
+    var d = DAILY[new Date().getDate() % DAILY.length];
+    box.className = 'daily-line';
+    box.innerHTML = '<span class="dl-label">Daily line</span><div class="dl-text">' + esc(d.en) +
+      '<span class="dl-zh">' + esc(d.zh) + '</span></div>' + speakBtn(d.en);
+  }
+
   function renderHome() {
+    renderDailyLine();
     var cats = $('home-cats');
     if (cats) {
       cats.className = 'cat-grid';
       cats.innerHTML = NAV.map(function (c) {
         var groups = c.children.map(function (g) { return g.title; }).slice(0, 6);
-        return '<a class="cat-card" href="#/' + c.pages[0].path + '"><div class="ch"><b>' + esc(c.title) + '</b><span class="n">' + c.pages.length + ' 篇</span></div>' +
+        return '<a class="cat-card" data-cat="' + c.id + '" href="#/' + c.pages[0].path + '">' +
+          '<span class="cat-en">' + esc(CAT_EN[c.id] || c.title) + '</span>' +
+          '<div class="ch"><b>' + esc(c.title) + '</b><span class="n">' + c.pages.length + ' 篇</span></div>' +
           '<p>' + esc(c.desc) + '</p><ul>' + groups.map(function (g) { return '<li>' + esc(g) + '</li>'; }).join('') + '</ul></a>';
       }).join('');
     }
