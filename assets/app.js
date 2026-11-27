@@ -162,7 +162,7 @@
     return '<div class="ph"><div class="ph-main">' + enBlock(e.en, e.ipa) +
       '<div class="ph-zh zw">' + esc(zh) + '</div>' +
       (note ? '<div class="ph-note">' + esc(note) + '</div>' : '') + '</div>' +
-      '<div class="ph-act">' + speakBtn(e.en) + '<button type="button" class="ibtn rev" aria-pressed="false" title="显示 / 隐藏英文">EN</button></div></div>';
+      '<div class="ph-act">' + speakBtn(e.en) + '<button type="button" class="ibtn rev" aria-pressed="false" title="显示 / 隐藏这一条的中文">中</button></div></div>';
   }
 
   function renderWord(f) {
@@ -173,7 +173,7 @@
         (exZh ? '<div class="zh zw">' + esc(exZh) + '</div>' : '') + speakBtn(x.en) + '</div>';
     }
     return '<div class="ph wd"><div class="ph-main">' + enBlock(w.en, w.ipa) + '<div class="ph-zh zw">' + zhHtml(zh) + '</div>' + ex + '</div>' +
-      '<div class="ph-act">' + speakBtn(w.en) + '<button type="button" class="ibtn rev" aria-pressed="false" title="显示 / 隐藏英文">EN</button></div></div>';
+      '<div class="ph-act">' + speakBtn(w.en) + '<button type="button" class="ibtn rev" aria-pressed="false" title="显示 / 隐藏这一条的中文">中</button></div></div>';
   }
 
   function renderDialog(code) {
@@ -190,7 +190,7 @@
       var e = takeEnIpa(f, 0), zh = f[e.next] || '';
       html += '<div class="turn ' + side + '" data-sp="' + order.indexOf(sp) + '"><span class="sp">' + esc(sp) + '</span>' +
         '<div class="ph"><div class="ph-main">' + enBlock(e.en, e.ipa) + '<div class="ph-zh zw">' + esc(zh) + '</div></div>' +
-        '<div class="ph-act">' + speakBtn(e.en) + '<button type="button" class="ibtn rev" aria-pressed="false" title="显示 / 隐藏英文">EN</button></div></div></div>';
+        '<div class="ph-act">' + speakBtn(e.en) + '<button type="button" class="ibtn rev" aria-pressed="false" title="显示 / 隐藏这一条的中文">中</button></div></div></div>';
     });
     return '<div class="dl"><div class="dl-head"><b>' + (title ? esc(title) : '情景对话') + '</b>' +
       '<button type="button" class="dl-play">▶ 播放整段对话</button></div>' + html + '</div>';
@@ -466,10 +466,10 @@
     });
     refreshRev();
   }
-  // EN 按钮的按下状态 = 这一条的英文当前是否可见
+  // 卡片右侧「中」按钮的按下状态 = 这一条的中文当前是否可见
   function refreshRev() {
     content.querySelectorAll('.ph').forEach(function (c) {
-      var hidden = view.hideEn !== c.classList.contains('flip');
+      var hidden = view.hideZh !== c.classList.contains('zflip');
       var b = c.querySelector('.rev');
       if (b) b.setAttribute('aria-pressed', String(!hidden));
     });
@@ -491,7 +491,7 @@
       '<span class="lbl">模式</span>' +
       '<span class="mode-switch"><button type="button" data-mode="study">默认英文</button><button type="button" data-mode="test">自测</button></span>' +
       '<span class="sep"></span><span class="lbl">显示</span>' +
-      '<button type="button" class="tg" data-k="hideEn" title="显示或遮住全部英文（也可以点每条右侧的 EN）">英文</button>' +
+      '<button type="button" class="tg" data-k="hideEn" title="显示或遮住全部英文（自测模式下也可以点模糊的英文）">英文</button>' +
       '<button type="button" class="tg" data-k="hideIpa" title="显示或隐藏音标">音标</button>' +
       '<button type="button" class="tg" data-k="hideZh" title="显示或遮住中文，用来练习听力和回忆">中文</button>' +
       '<span class="sep"></span><span class="lbl">语速</span>' +
@@ -536,13 +536,13 @@
     var spk = t.closest('.ibtn.spk');
     if (spk) { say(spk); return; }
     var rev = t.closest('.ibtn.rev');
-    if (rev) { rev.closest('.ph').classList.toggle('flip'); refreshRev(); return; }
+    if (rev) { rev.closest('.ph').classList.toggle('zflip'); refreshRev(); return; }
     var dp = t.closest('.dl-play');
     if (dp) { playDialog(dp); return; }
     // 点被遮住的英文 / 中文，直接显示
     var ew = t.closest('.ew'), zw = t.closest('.zw'), card = t.closest('.ph');
     if (ew && card && view.hideEn !== card.classList.contains('flip')) { card.classList.toggle('flip'); refreshRev(); return; }
-    if (zw && card && view.hideZh !== card.classList.contains('zflip')) { card.classList.toggle('zflip'); }
+    if (zw && card && view.hideZh !== card.classList.contains('zflip')) { card.classList.toggle('zflip'); refreshRev(); }
   });
 
   // 首页「每日一句」在正文容器之外，单独代理朗读按钮
